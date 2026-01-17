@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Add Monitor</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body data-page="add">
+    <div class="app">
+      <aside class="sidebar">
+        <div class="brand">Auto Academic Info</div>
+        <nav class="nav">
+          <a href="/">Dashboard</a>
+          <a class="active" href="/add">Add Monitor</a>
+        </nav>
+      </aside>
+      <main class="content">
+        <header class="header">
+          <div>
+            <h1>Add a Page to Monitor</h1>
+            <div class="subtle">
+              Paste a meeting list or detail page URL to track.
+            </div>
+          </div>
+          <div class="actions">
+            <a class="button secondary" href="/">Back to Dashboard</a>
+          </div>
+        </header>
+
+        <section class="panel">
+          <h2>Monitor URL</h2>
+          <form id="add-form">
+            <div class="form-row">
+              <input
+                type="url"
+                id="page-url"
+                placeholder="https://math.sysu.edu.cn/..."
+                required
+              />
+              <button type="submit">Add</button>
+            </div>
+          </form>
+          <div class="status-bar" id="add-status"></div>
+        </section>
+
+        <section class="panel" style="margin-top: 18px;">
+          <h2>Currently Monitored</h2>
+          <div class="list" id="pages-list"></div>
+        </section>
+      </main>
+    </div>
+    <script src="/static/app.js"></script>
+  </body>
+</html>
