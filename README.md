@@ -1,0 +1,1 @@
+"# auto-academic-info" 
