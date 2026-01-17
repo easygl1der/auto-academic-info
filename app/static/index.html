@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Academic Meeting Monitor</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body data-page="dashboard">
+    <div class="app">
+      <aside class="sidebar">
+        <div class="brand">Auto Academic Info</div>
+        <nav class="nav">
+          <a class="active" href="/">Dashboard</a>
+          <a href="/add">Add Monitor</a>
+        </nav>
+      </aside>
+      <main class="content">
+        <header class="header">
+          <div>
+            <h1>Meeting Monitor</h1>
+            <div class="subtle">Daily crawl at midnight (local time).</div>
+          </div>
+          <div class="actions">
+            <button class="secondary" id="refresh-button">Refresh</button>
+            <button id="crawl-button">Run Crawl</button>
+          </div>
+        </header>
+
+        <section class="stats">
+          <div class="stat-card">
+            <h3>Monitored Pages</h3>
+            <p id="stat-pages">0</p>
+          </div>
+          <div class="stat-card">
+            <h3>Meetings Tracked</h3>
+            <p id="stat-meetings">0</p>
+          </div>
+          <div class="stat-card">
+            <h3>Last Refresh</h3>
+            <p id="stat-refresh">-</p>
+          </div>
+        </section>
+
+        <section class="grid">
+          <div class="panel">
+            <h2>Monitored Pages</h2>
+            <div class="list" id="pages-list"></div>
+            <div class="status-bar" id="pages-status"></div>
+          </div>
+          <div class="panel">
+            <h2>Meeting Details</h2>
+            <div class="details" id="meeting-details">
+              Select a meeting to view details.
+            </div>
+            <div class="status-bar" id="details-status"></div>
+          </div>
+        </section>
+
+        <section class="panel" style="margin-top: 18px;">
+          <h2>Meetings</h2>
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Title</th>
+                <th>Speaker</th>
+                <th>Time</th>
+                <th>Location</th>
+                <th>Mode</th>
+                <th>Updated</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="meetings-table"></tbody>
+          </table>
+          <div class="status-bar" id="meetings-status"></div>
+        </section>
+      </main>
+    </div>
+    <script src="/static/app.js"></script>
+  </body>
+</html>
