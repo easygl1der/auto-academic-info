@@ -58,6 +58,7 @@ def init_db() -> None:
                 source_url TEXT NOT NULL UNIQUE,
                 title TEXT,
                 start_time TEXT,
+                start_date TEXT,
                 location TEXT,
                 speaker TEXT,
                 topic TEXT,
@@ -81,6 +82,14 @@ def init_db() -> None:
             );
             """
         )
+        ensure_column(conn, "meetings", "start_date", "TEXT")
+
+
+def ensure_column(conn: sqlite3.Connection, table: str, column: str, column_type: str) -> None:
+    rows = conn.execute(f"PRAGMA table_info({table})").fetchall()
+    existing = {row["name"] for row in rows}
+    if column not in existing:
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {column_type}")
 
 
 def row_to_dict(row: sqlite3.Row) -> Dict[str, Any]:
@@ -135,19 +144,37 @@ def update_page_checked(page_id: int, timestamp: str) -> None:
         )
 
 
-def list_meetings(limit: int = 200) -> List[Dict[str, Any]]:
+def list_meetings(
+    limit: int = 200, upcoming_only: bool = True, today: Optional[str] = None
+) -> List[Dict[str, Any]]:
     with get_connection() as conn:
-        rows = conn.execute(
-            """
-            SELECT id, source_page_url, source_url, title, start_time, location, speaker,
-                   topic, abstract, mode, online_link, speaker_intro, speaker_intro_url,
-                   data_hash, created_at, last_seen_at, last_updated_at
-            FROM meetings
-            ORDER BY last_seen_at DESC
-            LIMIT ?
-            """,
-            (limit,),
-        ).fetchall()
+        if upcoming_only and today:
+            rows = conn.execute(
+                """
+                SELECT id, source_page_url, source_url, title, start_time, start_date,
+                       location, speaker, topic, abstract, mode, online_link,
+                       speaker_intro, speaker_intro_url, data_hash, created_at,
+                       last_seen_at, last_updated_at
+                FROM meetings
+                WHERE start_date >= ?
+                ORDER BY last_seen_at DESC
+                LIMIT ?
+                """,
+                (today, limit),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                """
+                SELECT id, source_page_url, source_url, title, start_time, start_date,
+                       location, speaker, topic, abstract, mode, online_link,
+                       speaker_intro, speaker_intro_url, data_hash, created_at,
+                       last_seen_at, last_updated_at
+                FROM meetings
+                ORDER BY last_seen_at DESC
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
     return [row_to_dict(row) for row in rows]
 
 
@@ -155,9 +182,10 @@ def get_meeting(meeting_id: int) -> Optional[Dict[str, Any]]:
     with get_connection() as conn:
         row = conn.execute(
             """
-            SELECT id, source_page_url, source_url, title, start_time, location, speaker,
-                   topic, abstract, mode, online_link, speaker_intro, speaker_intro_url,
-                   data_hash, created_at, last_seen_at, last_updated_at
+            SELECT id, source_page_url, source_url, title, start_time, start_date,
+                   location, speaker, topic, abstract, mode, online_link,
+                   speaker_intro, speaker_intro_url, data_hash, created_at,
+                   last_seen_at, last_updated_at
             FROM meetings
             WHERE id = ?
             """,
@@ -190,9 +218,10 @@ def upsert_meeting(record: Dict[str, Any]) -> Dict[str, Any]:
     with get_connection() as conn:
         existing = conn.execute(
             """
-            SELECT id, source_page_url, source_url, title, start_time, location, speaker,
-                   topic, abstract, mode, online_link, speaker_intro, speaker_intro_url,
-                   data_hash, created_at, last_seen_at, last_updated_at
+            SELECT id, source_page_url, source_url, title, start_time, start_date,
+                   location, speaker, topic, abstract, mode, online_link,
+                   speaker_intro, speaker_intro_url, data_hash, created_at,
+                   last_seen_at, last_updated_at
             FROM meetings
             WHERE source_url = ?
             """,
@@ -204,17 +233,19 @@ def upsert_meeting(record: Dict[str, Any]) -> Dict[str, Any]:
             conn.execute(
                 """
                 INSERT INTO meetings (
-                    source_page_url, source_url, title, start_time, location, speaker,
-                    topic, abstract, mode, online_link, speaker_intro, speaker_intro_url,
-                    data_hash, created_at, last_seen_at, last_updated_at
+                    source_page_url, source_url, title, start_time, start_date, location,
+                    speaker, topic, abstract, mode, online_link, speaker_intro,
+                    speaker_intro_url, data_hash, created_at, last_seen_at,
+                    last_updated_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     record.get("source_page_url"),
                     record.get("source_url"),
                     record.get("title"),
                     record.get("start_time"),
+                    record.get("start_date"),
                     record.get("location"),
                     record.get("speaker"),
                     record.get("topic"),
@@ -255,16 +286,17 @@ def upsert_meeting(record: Dict[str, Any]) -> Dict[str, Any]:
             conn.execute(
                 """
                 UPDATE meetings
-                SET source_page_url = ?, title = ?, start_time = ?, location = ?,
-                    speaker = ?, topic = ?, abstract = ?, mode = ?, online_link = ?,
-                    speaker_intro = ?, speaker_intro_url = ?, data_hash = ?,
-                    last_seen_at = ?, last_updated_at = ?
+                SET source_page_url = ?, title = ?, start_time = ?, start_date = ?,
+                    location = ?, speaker = ?, topic = ?, abstract = ?, mode = ?,
+                    online_link = ?, speaker_intro = ?, speaker_intro_url = ?,
+                    data_hash = ?, last_seen_at = ?, last_updated_at = ?
                 WHERE id = ?
                 """,
                 (
                     record.get("source_page_url"),
                     record.get("title"),
                     record.get("start_time"),
+                    record.get("start_date"),
                     record.get("location"),
                     record.get("speaker"),
                     record.get("topic"),
@@ -281,8 +313,16 @@ def upsert_meeting(record: Dict[str, Any]) -> Dict[str, Any]:
             )
             return {"meeting_id": existing_dict["id"], "created": False, "changed": True}
 
-        conn.execute(
-            "UPDATE meetings SET last_seen_at = ? WHERE id = ?",
-            (now, existing_dict["id"]),
-        )
+        if record.get("start_date") and record.get("start_date") != existing_dict.get(
+            "start_date"
+        ):
+            conn.execute(
+                "UPDATE meetings SET start_date = ?, last_seen_at = ? WHERE id = ?",
+                (record.get("start_date"), now, existing_dict["id"]),
+            )
+        else:
+            conn.execute(
+                "UPDATE meetings SET last_seen_at = ? WHERE id = ?",
+                (now, existing_dict["id"]),
+            )
     return {"meeting_id": existing_dict["id"], "created": False, "changed": False}

@@ -6,11 +6,13 @@ import logging
 import re
 import time
 from dataclasses import dataclass
+from datetime import date, datetime
 from typing import Dict, Iterable, List, Optional, Tuple
 from urllib.parse import urljoin, urlparse
 
 import requests
 from bs4 import BeautifulSoup
+from zoneinfo import ZoneInfo
 
 from .db import MEETING_FIELDS, upsert_meeting, update_page_checked, utc_now_iso
 
@@ -21,6 +23,7 @@ USER_AGENT = (
     "(KHTML, like Gecko) Chrome/120.0 Safari/537.36"
 )
 REQUEST_TIMEOUT = 12
+LOCAL_TIMEZONE = "Asia/Shanghai"
 CRAWL_KEYWORDS = [
     "讲座",
     "报告",
@@ -45,7 +48,13 @@ ONLINE_KEYWORDS = ["线上", "online", "zoom", "腾讯会议", "meeting link", "
 OFFLINE_KEYWORDS = ["线下", "offline", "现场"]
 
 URL_PATTERN = re.compile(r"https?://[^\s)]+")
-DATE_PATTERN = re.compile(r"\d{4}[年/-]\d{1,2}[月/-]\d{1,2}[日]?")
+DATE_PATTERN = re.compile(r"\d{4}[年./-]\d{1,2}[月./-]\d{1,2}[日]?")
+DATE_WITH_YEAR_PATTERN = re.compile(
+    r"(?P<year>20\d{2})[年./-](?P<month>\d{1,2})[月./-](?P<day>\d{1,2})[日]?"
+)
+DATE_NO_YEAR_PATTERN = re.compile(
+    r"(?<!\d)(?P<month>\d{1,2})[月./-](?P<day>\d{1,2})[日]?"
+)
 TIME_PATTERN = re.compile(r"\d{1,2}:\d{2}")
 
 
@@ -67,6 +76,42 @@ def fetch_html(url: str) -> Tuple[str, str]:
 
 def normalize_text(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
+
+
+def get_today_date() -> date:
+    try:
+        tz = ZoneInfo(LOCAL_TIMEZONE)
+    except Exception:
+        tz = ZoneInfo("UTC")
+    return datetime.now(tz).date()
+
+
+def parse_start_date(text: str, today: date) -> Optional[date]:
+    match = DATE_WITH_YEAR_PATTERN.search(text)
+    if match:
+        try:
+            return date(
+                int(match.group("year")),
+                int(match.group("month")),
+                int(match.group("day")),
+            )
+        except ValueError:
+            return None
+
+    match = DATE_NO_YEAR_PATTERN.search(text)
+    if match:
+        try:
+            return date(
+                today.year, int(match.group("month")), int(match.group("day"))
+            )
+        except ValueError:
+            return None
+    return None
+
+
+def extract_start_date(lines: List[str], start_time: Optional[str]) -> Optional[date]:
+    combined = " ".join([start_time or "", " ".join(lines)])
+    return parse_start_date(combined, get_today_date())
 
 
 def extract_candidate_links(html: str, base_url: str) -> List[str]:
@@ -236,12 +281,14 @@ def build_record(source_page_url: str, detail_url: str, html: str) -> Dict[str, 
     lines = build_lines(soup)
     fields = parse_fields(lines)
     speaker_intro, speaker_intro_url = search_speaker_intro(fields.get("speaker") or "")
+    start_date = extract_start_date(lines, fields.get("start_time"))
 
     record: Dict[str, Optional[str]] = {
         "source_page_url": source_page_url,
         "source_url": detail_url,
         "title": title or fields.get("topic"),
         "start_time": fields.get("start_time"),
+        "start_date": start_date.isoformat() if start_date else None,
         "location": fields.get("location"),
         "speaker": fields.get("speaker"),
         "topic": fields.get("topic") or title,
@@ -267,10 +314,13 @@ def crawl_page(page_id: int, url: str) -> List[CrawlResult]:
         detail_urls = [final_url]
 
     results: List[CrawlResult] = []
+    today = get_today_date().isoformat()
     for detail_url in detail_urls:
         try:
             detail_html, detail_final = fetch_html(detail_url)
             record = build_record(final_url, detail_final, detail_html)
+            if record.get("start_date") and record["start_date"] < today:
+                continue
             outcome = upsert_meeting(record)
             results.append(
                 CrawlResult(

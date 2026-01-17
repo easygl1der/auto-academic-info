@@ -70,6 +70,14 @@ def seconds_until_midnight(tz_name: str) -> float:
     return max((next_run - now).total_seconds(), 0)
 
 
+def today_date_str() -> str:
+    try:
+        tz = ZoneInfo(DEFAULT_TIMEZONE)
+    except Exception:
+        tz = ZoneInfo("UTC")
+    return datetime.now(tz).date().isoformat()
+
+
 async def daily_scheduler() -> None:
     while True:
         delay = seconds_until_midnight(DEFAULT_TIMEZONE)
@@ -133,8 +141,9 @@ def fetch_all(background_tasks: BackgroundTasks) -> Dict[str, str]:
 
 
 @app.get("/api/meetings")
-def get_meetings(limit: int = 200) -> List[Dict[str, Any]]:
-    return list_meetings(limit=limit)
+def get_meetings(limit: int = 200, upcoming_only: bool = True) -> List[Dict[str, Any]]:
+    today = today_date_str() if upcoming_only else None
+    return list_meetings(limit=limit, upcoming_only=upcoming_only, today=today)
 
 
 @app.get("/api/meetings/{meeting_id}")

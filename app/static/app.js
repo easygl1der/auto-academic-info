@@ -96,6 +96,7 @@ function renderMeetingDetails(meeting, history, panel) {
     ["Title", meeting.title || meeting.topic],
     ["Speaker", meeting.speaker],
     ["Time", meeting.start_time],
+    ["Start Date", meeting.start_date],
     ["Location", meeting.location],
     ["Mode", meeting.mode],
     ["Source Page", meeting.source_page_url],
